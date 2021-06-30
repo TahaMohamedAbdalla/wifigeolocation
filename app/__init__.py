@@ -7,7 +7,7 @@ from .main.controller.wifilocation_controller import api as wifi_ns
 
 
 
-blueprint = Blueprint('api',__name__)
+blueprint = Blueprint('wifi',__name__)
 
 api = Api(blueprint,
           title='FLASK RESTPLUS API BOILER-PLATE WITH JWT',
@@ -16,4 +16,4 @@ api = Api(blueprint,
           )
 
 
-api.add_namespace(wifi_ns, path='/api')
+api.add_namespace(wifi_ns, path='/wifi')
