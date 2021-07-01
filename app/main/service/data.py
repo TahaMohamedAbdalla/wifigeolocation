@@ -60,4 +60,3 @@ def formatScanData(zip_folder):
                         }  for j in range(len(rawdata[i]['apscan_data'])) ]} for i in range(len(rawdata)) ]
 
      
-

@@ -1,39 +1,44 @@
-from posixpath import join
-from requests.models import Response
 from app.main import db
 from app.main.config import  GOOGLE_KEY
 
-import os
-import zipfile
-import json
 import requests
 
 url = f'https://www.googleapis.com/geolocation/v1/geolocate?key={GOOGLE_KEY}'
 def fetchwifilocationjson(data):
     try:
-        found = []
-        not_found = []
-        apscan_data = data['apscan_data']
-        i = 0
-        data = {  'wifiAccessPoints': [{ 'macAddress': apscan_data[i]['bssid'], 
-                  'channel':  apscan_data[i]['channel'], 
-                  'age':  apscan_data[i]['timestamp'] ,
-                  'signalStrength': apscan_data[i]['rssi'] }
-                    for i in range(len(apscan_data))] } 
+
+        """ format scan data to mach google geolcation """
+        for record in data['apscan_data']:
+            record['macAddress'] = record.pop('bssid')
+            record['age'] = float(record.pop('timestamp'))
+            record['signalStrength'] = int(record.pop('rssi'))
+        data['wifiAccessPoints'] = data.pop('apscan_data')
+
+        """ query the database """
         aps = db.db.wifiscan.find_one(data)
-        if aps:
+        """ if found return location and accuracy"""
+        if  aps:
             return {  'location': aps['location'], 'accuracy': aps['accuracy'] }    
         else:
-            result = requests.post(url, json=data).json()
-            print(result)
+            """ if not found ask google"""
+            search = {'wifiAccessPoints': [ {
+                            'macAddress': data['wifiAccessPoints'][i]['macAddress'],
+                            'age':  data['wifiAccessPoints'][i]['age'],
+                            'channel': int(data['wifiAccessPoints'][i]['channel']),
+                            'signalStrength': data['wifiAccessPoints'][i]['signalStrength'],
+                             } for i in range(len(data['wifiAccessPoints']))]}
+          
+            result = requests.post(url, json=search).json()
+            """ if found update the database and return location & accuracy """
             if 'location' in result:
-                db.db.wifiscan.insert_one({'wifiAccessPoints': apscan_data, 
+                db.db.wifiscan.insert_one({'wifiAccessPoints': data['wifiAccessPoints'], 
                                             'location': result['location'],
                                             'accuracy': result['accuracy']  })
                 return { 'location': result['location'], 'accuracy': result['accuracy'] }, 200
             else:
-                not_found.append( {'wifiAccessPoints': apscan_data  } )
-                db.db.not_found.insert_one({'wifiAccessPoints': apscan_data })
-                return {"error":  "not_found" } , 404
+                """ if not found update the not found database and retrun not found"""
+                db.db.not_found.insert_one(data)
+                return {"error":  "not found" } , 404
     except Exception as e:
         return {'error': "error" }, 400
+
